@@ -132,6 +132,19 @@ dialog code { font-size: 12px; }
   aside { border-left: 0; border-top: 1px solid var(--border); }
   #stage { min-height: 300px; height: 55vh; }
 }
+
+/* Apple Pencil laser pointer */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+textarea, input { -webkit-user-select: text; user-select: text; }
+#laserTrail { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 1000; }  /* sized in JS: 100vh is taller than the visible area on iPad */
+#laserDot {
+  position: fixed; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 18%, #ff3030 38%, rgba(255,0,0,.55) 62%, rgba(255,0,0,0) 72%);
+  box-shadow: 0 0 14px 6px rgba(255, 30, 30, .55);
+  pointer-events: none; z-index: 1001; opacity: 0; transition: opacity .35s ease-out;
+}
+#laserDot.on { opacity: 1; transition: opacity .05s; }
+#laserDot.hover { opacity: .6; transition: opacity .05s; }
 </style>
 </head>
 <body>
@@ -834,6 +847,70 @@ async function boot() {
 }
 function warn(msg) { const b = $("#banner"); b.style.display = "block"; b.textContent = (b.textContent ? b.textContent + " " : "") + msg; }
 boot();
+</script>
+<canvas id="laserTrail"></canvas>
+<div id="laserDot"></div>
+<script>
+// Laser pointer for presenting from an iPad: wherever the Apple Pencil touches (or hovers, on iPads
+// with Pencil hover), show a red dot with a short fading trail. Fingers and mice are unaffected.
+(() => {
+  const dot = document.getElementById("laserDot"), cv = document.getElementById("laserTrail"), ctx = cv.getContext("2d");
+  const TRAIL_MS = 350;
+  let pts = [], raf = 0, hideTimer = 0;
+  // The canvas must cover exactly the visible viewport, in CSS pixels, so that clientX/clientY map 1:1.
+  let W = 0, H = 0;
+  function resize() {
+    const r = window.devicePixelRatio || 1;
+    W = document.documentElement.clientWidth; H = document.documentElement.clientHeight;
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+    cv.width = Math.round(W * r); cv.height = Math.round(H * r); ctx.setTransform(r, 0, 0, r, 0, 0);
+  }
+  resize(); addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+
+  function draw() {
+    const now = performance.now();
+    pts = pts.filter((p) => now - p.t < TRAIL_MS);
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      if (b.t - a.t > 80) continue;                      // don't join separate strokes
+      const life = 1 - (now - b.t) / TRAIL_MS;
+      ctx.strokeStyle = `rgba(255, 40, 40, ${0.75 * life})`;
+      ctx.lineWidth = 2 + 6 * life;
+      ctx.shadowColor = "rgba(255, 0, 0, .8)"; ctx.shadowBlur = 10 * life;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    raf = pts.length ? requestAnimationFrame(draw) : 0;
+  }
+
+  function show(e, cls) {
+    clearTimeout(hideTimer);
+    dot.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+    dot.classList.toggle("on", cls === "on");
+    dot.classList.toggle("hover", cls === "hover");
+    if (cls === "on") {
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+      for (const c of (evs.length ? evs : [e])) pts.push({ x: c.clientX, y: c.clientY, t: performance.now() });
+      if (!raf) raf = requestAnimationFrame(draw);
+    }
+  }
+  function hide(delay) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => dot.classList.remove("on", "hover"), delay);
+  }
+  const isPen = (e) => e.pointerType === "pen";
+  addEventListener("pointerdown", (e) => { if (isPen(e)) show(e, "on"); }, true);
+  addEventListener("pointermove", (e) => { if (isPen(e)) show(e, e.buttons || e.pressure > 0 ? "on" : "hover"); }, true);
+  addEventListener("pointerup", (e) => { if (isPen(e)) { dot.classList.remove("on"); dot.classList.add("hover"); hide(600); } }, true);
+  addEventListener("pointercancel", (e) => { if (isPen(e)) hide(0); }, true);
+  addEventListener("pointerout", (e) => { if (isPen(e) && !e.relatedTarget) hide(300); }, true);
+  // Stop the Pencil from scrolling the page (which would also cancel the pointer); fingers still scroll.
+  addEventListener("touchmove", (e) => {
+    if ([...e.touches].some((t) => t.touchType === "stylus")) e.preventDefault();
+  }, { passive: false });
+})();
 </script>
 </body>
 </html>
