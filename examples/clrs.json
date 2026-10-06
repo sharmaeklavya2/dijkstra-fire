@@ -1,6 +1,6 @@
 {
   "name": "CLRS directed example",
-  "description": "The directed graph from CLRS (Fig. 24.6 / 22.6). Several decrease-keys happen along the way.",
+  "description": "The directed graph from CLRS (Fig. 24.6 / 22.6).",
   "directed": true,
   "source": "s",
   "nodes": [

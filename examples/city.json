@@ -1,6 +1,6 @@
 {
   "name": "Small town (undirected, with an unreachable vertex)",
-  "description": "Trail lengths are the drawn distances (rounded), computed from the coordinates because the edges omit \"length\". Fires meet in the middle of some trails. The island q has no trails, so its d stays ∞.",
+  "description": "",
   "directed": false,
   "source": "A",
   "nodes": [

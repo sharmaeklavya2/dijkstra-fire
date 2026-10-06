@@ -1,6 +1,6 @@
 {
   "name": "Triangle, large lengths",
-  "description": "Same graph with lengths ×100. With step length 1, reaching t takes 500 steps; Dijkstra needs 3 ignition jumps. Try a bigger step length, or 'Next ignition'.",
+  "description": "",
   "directed": false,
   "source": "s",
   "step": 1,
