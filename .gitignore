@@ -1,0 +1,6 @@
+*.zip
+*~
+*.sw[po]
+*.db
+Desktop.ini
+.DS_Store

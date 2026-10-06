@@ -1,0 +1,21 @@
+{
+  "name": "Small town (undirected, with an unreachable vertex)",
+  "description": "Trail lengths are the drawn distances (rounded), computed from the coordinates because the edges omit \"length\". Fires meet in the middle of some trails. The island q has no trails, so its d stays ∞.",
+  "directed": false,
+  "source": "A",
+  "nodes": [
+    { "id": "A", "x": 0,  "y": 8 },
+    { "id": "B", "x": 7,  "y": 0 },
+    { "id": "C", "x": 7,  "y": 15 },
+    { "id": "D", "x": 16, "y": 4 },
+    { "id": "E", "x": 16, "y": 12 },
+    { "id": "F", "x": 25, "y": 0 },
+    { "id": "G", "x": 26, "y": 15 },
+    { "id": "H", "x": 34, "y": 8 },
+    { "id": "q", "x": 34, "y": 16 }
+  ],
+  "edges": [
+    ["A", "B"], ["A", "C"], ["B", "C"], ["B", "D"], ["C", "E"], ["C", "D"],
+    ["D", "E"], ["D", "F"], ["E", "G"], ["F", "H"], ["G", "H"], ["F", "G"]
+  ]
+}

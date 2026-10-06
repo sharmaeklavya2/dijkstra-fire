@@ -1,0 +1,16 @@
+{
+  "name": "Triangle (lecture example)",
+  "description": "The s, a, t example: the direct fuse s–t (length 7) is beaten by s–a–t (3 + 2 = 5). Watch t's scheduled time drop from 7 to 5 when a ignites.",
+  "directed": false,
+  "source": "s",
+  "nodes": [
+    { "id": "s", "x": 0,   "y": 200 },
+    { "id": "a", "x": 250, "y": 0 },
+    { "id": "t", "x": 500, "y": 200 }
+  ],
+  "edges": [
+    { "from": "s", "to": "a", "length": 3 },
+    { "from": "a", "to": "t", "length": 2 },
+    { "from": "s", "to": "t", "length": 7 }
+  ]
+}

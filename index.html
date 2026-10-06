@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Dijkstra on Fire</title>
+<style>
+:root {
+  --bg: #15110f; --panel: #1e1815; --panel2: #28201c; --text: #f2e8dd; --muted: #a59587;
+  --border: #3a2f29; --powder: #8c7f74; --char: #6b2a14; --hot: #ff7a1a; --ember: #ffd34d;
+  --node: #e9dcc9; --node-stroke: #b9a993; --node-text: #1b1410; --accent: #ff8a3d;
+  --tree: #ffd34d; --btn: #332923; --btn-hover: #44372f; --label-bg: #221b17; --flash: #ffd34d;
+  --unreached: #6d625a; --row-on: rgba(255, 122, 26, .16);
+}
+[data-theme="light"] {
+  --bg: #f7f3ee; --panel: #ffffff; --panel2: #f3ede6; --text: #231a14; --muted: #6f6158;
+  --border: #ddd2c7; --powder: #a19488; --char: #4a2516; --node: #fffaf2; --node-stroke: #8f8173;
+  --node-text: #231a14; --btn: #efe7de; --btn-hover: #e4d8ca; --label-bg: #fffaf3;
+  --tree: #d97706; --flash: #b45309; --unreached: #b3a79c; --ember: #f59e0b; --row-on: rgba(255, 122, 26, .14);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  display: flex; flex-direction: column;
+}
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--panel);
+}
+header h1 { font-size: 18px; margin: 0 8px 0 0; letter-spacing: .2px; }
+header h1 span { color: var(--accent); }
+header .spacer { flex: 1; }
+select, input[type=number], button, textarea {
+  font: inherit; color: var(--text); background: var(--btn);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+select, input[type=number] { padding: 5px 8px; }
+input[type=number] { width: 90px; font-variant-numeric: tabular-nums; }
+button { padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { background: var(--btn-hover); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1b0f06; font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+#btnPlay { min-width: 9.5em; text-align: left; }
+kbd {
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 4px; margin-left: 6px;
+  border: 1px solid currentColor; border-radius: 4px; opacity: .6;
+}
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 370px; min-height: 0; }
+#stageWrap { display: flex; flex-direction: column; min-height: 0; padding: 10px 14px 12px; }
+#stage { flex: 1; width: 100%; min-height: 320px; display: block; }
+#desc { color: var(--muted); margin: 4px 4px 6px; max-width: 900px; }
+#banner { display: none; margin: 4px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent); color: var(--text); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px; margin: 4px; }
+.legend svg { vertical-align: middle; margin-right: 5px; }
+aside { border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; padding: 12px 14px 20px; }
+.num { font-variant-numeric: tabular-nums; }
+.clock { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.clock .lbl { color: var(--muted); font-size: 13px; }
+.clock .big { font-size: 34px; font-weight: 700; color: var(--accent); display: inline-block; min-width: 5.5ch; }
+.group { margin: 12px 0; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel2); }
+.group-title { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 8px; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.row input[type=range] { flex: 1; min-width: 60px; }
+#rateOut { display: inline-block; min-width: 6.5em; text-align: right; }
+.muted { color: var(--muted); }
+.counters { margin: 8px 0 4px; font-size: 13px; color: var(--muted); }
+.counters b { color: var(--text); display: inline-block; min-width: 2.5ch; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 6px; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 16px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+th { color: var(--muted); font-weight: 600; font-size: 14px; }
+th[title] { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+td.v { font-weight: 700; }
+tr.on td { background: var(--row-on); }
+tr.on td.dv { font-weight: 700; }
+tr.next td { box-shadow: inset 0 -2px 0 var(--accent), inset 0 2px 0 var(--accent); }
+tr.inf td.dv { color: var(--unreached); }
+td.st { color: var(--muted); font-size: 14px; }
+tr.on td.st { color: var(--accent); font-weight: 600; }
+.was { text-decoration: line-through; color: var(--muted); margin-right: 6px; font-weight: 400; }
+.flash { color: var(--flash); font-weight: 700; }
+details { margin-top: 16px; }
+details summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+#log { font-size: 13px; max-height: 300px; overflow-y: auto; padding-right: 4px; margin-top: 6px; }
+#log .ev { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+#log .ev .hd b { color: var(--accent); }
+#log ul { margin: 3px 0 0; padding-left: 18px; }
+#log li.none { color: var(--muted); }
+.tag { font-size: 11px; padding: 0 5px; border-radius: 4px; border: 1px solid currentColor; margin-left: 4px; }
+.tag.dec { color: var(--flash); }
+.tag.ins { color: var(--accent); }
+dialog {
+  width: min(760px, 94vw); background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+}
+dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog textarea { width: 100%; height: 52vh; padding: 10px; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); }
+#jsonErr { color: #ff6b5a; min-height: 1.4em; margin: 6px 0; white-space: pre-wrap; }
+dialog .help { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+dialog code { font-size: 12px; }
+
+/* SVG */
+.trail { fill: none; stroke: var(--powder); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0.1 7; }
+.burnt { fill: none; stroke: var(--char); stroke-width: 6; stroke-linecap: round; }
+.hot { fill: none; stroke: var(--hot); stroke-width: 6; stroke-linecap: round; filter: url(#glow); }
+.treeEdge { fill: none; stroke: var(--tree); stroke-width: 3; stroke-linecap: round; opacity: .9; }
+.arrow { fill: var(--powder); }
+.arrow.done { fill: var(--char); }
+.ember { fill: var(--ember); filter: url(#glow); animation: flicker .18s infinite alternate; }
+.elabel rect { fill: var(--label-bg); stroke: var(--border); }
+.elabel text { fill: var(--text); font-size: 20px; font-weight: 600; text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
+.elabel.burning text { fill: var(--hot); }
+.node .body { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+.node .halo { fill: var(--hot); opacity: 0; }
+.node.on .body { fill: url(#fireGrad); stroke: #b3360f; }
+.node.on .halo { opacity: .35; animation: flicker .23s infinite alternate; filter: url(#glow); }
+.node .name { fill: var(--node-text); font-size: 24px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.node.on .name { fill: #2a0e02; }
+.node .src { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.node .sublabel { fill: var(--muted); font-size: 20px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.node.on .sublabel { fill: var(--text); font-weight: 700; }
+.node .sublabel .flashT { fill: var(--flash); font-weight: 700; }
+.node .sublabel .wasT { text-decoration: line-through; fill: var(--muted); font-weight: 400; }
+@keyframes flicker { from { opacity: .55; } to { opacity: 1; } }
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  aside { border-left: 0; border-top: 1px solid var(--border); }
+  #stage { min-height: 300px; height: 55vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>🔥</span> Dijkstra on Fire</h1>
+  <label>Example <select id="exampleSel"></select></label>
+  <label>Source <select id="sourceSel"></select></label>
+  <button id="btnJson">Edit / load JSON…</button>
+  <span class="spacer"></span>
+  <button id="btnTheme" title="Toggle light/dark">◐ Theme</button>
+</header>
+
+<main>
+  <div id="stageWrap">
+    <div id="banner"></div>
+    <svg id="stage" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="fireGrad" cx="50%" cy="60%" r="60%">
+          <stop offset="0%" stop-color="#fff3b0"/>
+          <stop offset="45%" stop-color="#ffb02e"/>
+          <stop offset="100%" stop-color="#e2470f"/>
+        </radialGradient>
+        <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="3.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="gEdges"></g>
+      <g id="gEmbers"></g>
+      <g id="gLabels"></g>
+      <g id="gNodes"></g>
+    </svg>
+    <p id="desc"></p>
+    <div class="legend">
+      <span><svg width="34" height="10"><line x1="3" y1="5" x2="31" y2="5" class="trail"/></svg>gunpowder trail (unburned)</span>
+      <span><svg width="34" height="10"><line x1="3" y1="5" x2="31" y2="5" class="burnt"/></svg>burned</span>
+      <span><svg width="34" height="14"><line x1="3" y1="7" x2="22" y2="7" class="hot"/><circle cx="25" cy="7" r="4" class="ember"/></svg>fire front</span>
+      <span>d under a burning vertex: when it caught fire (final). Under an unburned vertex: when it's currently scheduled to.</span>
+    </div>
+  </div>
+
+  <aside>
+    <div class="clock">
+      <span class="lbl">fire front at distance</span>
+      <span class="big num" id="clockD">0</span>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Step by step (the slow way)</div>
+      <div class="row">
+        <button id="btnStep">Step<kbd>→</kbd></button>
+        <label class="row" style="margin:0">step length <input id="stepLen" type="number" min="0" step="any" value="1"></label>
+      </div>
+      <div class="row">
+        <button id="btnPlay">▶ Play<kbd>Space</kbd></button>
+        <input id="rate" type="range" min="0" max="10" step="1" value="5" aria-label="Play rate">
+        <span id="rateOut" class="num"></span>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Jump to the next ignition (Dijkstra)</div>
+      <div class="btns">
+        <button id="btnNext" class="primary">Next ignition<kbd>N</kbd></button>
+        <button id="btnRun">Run to end</button>
+        <button id="btnReset">↺ Reset<kbd>R</kbd></button>
+      </div>
+    </div>
+
+    <div class="counters num">
+      Steps: <b id="cSteps">0</b> · Ignition jumps: <b id="cJumps">0</b> · On fire: <b id="cBurn">0</b>
+    </div>
+    <label class="row"><input type="checkbox" id="optProgress" checked> show burned amount on trails</label>
+    <label class="row"><input type="checkbox" id="optTree" checked> highlight shortest-path tree</label>
+
+    <h2>Table</h2>
+    <table>
+      <colgroup><col style="width:14%"><col style="width:42%"><col style="width:18%"><col style="width:26%"></colgroup>
+      <thead><tr>
+        <th title="vertex">v</th>
+        <th title="distance: when v caught fire (final, if burning) or when it is currently scheduled to (the priority-queue key)">d(v)</th>
+        <th title="parent: the vertex whose fuse reaches v first (predecessor on the shortest path)">π(v)</th>
+        <th title="burning = finalized; the number is the order in which vertices caught fire">burning?</th>
+      </tr></thead>
+      <tbody id="tblBody"></tbody>
+    </table>
+
+    <details id="logWrap">
+      <summary>Event log</summary>
+      <div id="log"></div>
+    </details>
+  </aside>
+</main>
+
+<dialog id="jsonDlg">
+  <p class="help">
+    Graph format: <code>{"name", "description", "directed", "source", "step", "rate", "nodes": [{"id","x","y"}], "edges": [{"from","to","length"}]}</code>.
+    Shorthands: a node may be just <code>"s"</code>, and an edge may be <code>["s","a",3]</code>. If an edge's length is omitted, it's the
+    straight-line distance between its endpoints' coordinates, rounded to an integer. Coordinates are optional otherwise (nodes go on a circle); y points down.
+  </p>
+  <textarea id="jsonText" spellcheck="false"></textarea>
+  <div id="jsonErr"></div>
+  <div class="btns">
+    <button id="jsonApply" class="primary">Apply</button>
+    <button id="jsonDownload">Download .json</button>
+    <button id="jsonOpenBtn" type="button">Open file…</button><input id="jsonFile" type="file" accept=".json,application/json" hidden>
+    <span style="flex:1"></span>
+    <button id="jsonClose">Close</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const SVGNS = "http://www.w3.org/2000/svg";
+const R = 28;          // node radius (viewBox units)
+const EPS = 1e-9;
+const $ = (s) => document.querySelector(s);
+
+// Used only if examples/ can't be fetched (e.g. opened via file://).
+const FALLBACK = {
+  name: "Triangle (lecture example)",
+  description: "The s, a, t example: the direct fuse s–t (length 7) is beaten by s–a–t (3 + 2 = 5).",
+  directed: false, source: "s",
+  nodes: [{ id: "s", x: 0, y: 200 }, { id: "a", x: 250, y: 0 }, { id: "t", x: 500, y: 200 }],
+  edges: [{ from: "s", to: "a", length: 3 }, { from: "a", to: "t", length: 2 }, { from: "s", to: "t", length: 7 }]
+};
+
+let examples = [];   // [{file, raw}]
+let customRaw = null;
+let G = null;        // normalized graph
+let S = null;        // simulation state
+let els = null;      // svg element refs
+let anim = null;     // active tween
+let playing = false;
+let lastFrame = 0;
+let version = 0;     // bumps whenever discrete state changes (for side panel redraw)
+let drawnVersion = -1;
+let rates = [1];     // play-rate slider values (length units per second)
+let chainToken = 0;  // bumped by every user action, so "Run to end" stops when interrupted
+
+/* ---------- helpers ---------- */
+function fmt(x) {
+  if (!isFinite(x)) return "∞";
+  const r = Math.round(x * 100) / 100;
+  return String(Object.is(r, -0) ? 0 : r);
+}
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+// 1-2-5 "nice" numbers
+function niceSeq(lo, hi) {
+  const out = [];
+  for (let e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)) + 1; e++)
+    for (const m of [1, 2, 5]) { const v = +(m * Math.pow(10, e)).toPrecision(6); if (v >= lo - EPS && v <= hi + EPS) out.push(v); }
+  return out;
+}
+function niceNearest(x) {
+  const c = niceSeq(x / 10, x * 10);
+  return c.reduce((b, v) => (Math.abs(Math.log(v / x)) < Math.abs(Math.log(b / x)) ? v : b), c[0]);
+}
+function niceFloor(x) { const c = niceSeq(x / 10, x); return c.length ? c[c.length - 1] : x; }
+
+const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+function bz(P, t) { const u = 1 - t; return { x: u*u*P[0].x + 2*u*t*P[1].x + t*t*P[2].x, y: u*u*P[0].y + 2*u*t*P[1].y + t*t*P[2].y }; }
+function bzTan(P, t) { return { x: 2*(1-t)*(P[1].x-P[0].x) + 2*t*(P[2].x-P[1].x), y: 2*(1-t)*(P[1].y-P[0].y) + 2*t*(P[2].y-P[1].y) }; }
+function subBz(P, t0, t1) {               // the piece of quadratic Bézier P between t0 and t1
+  const A = lerp(P[0], P[1], t1), B = lerp(P[1], P[2], t1), C = lerp(A, B, t1);
+  const s = t1 > 0 ? t0 / t1 : 0;
+  const D = lerp(P[0], A, s), E = lerp(A, C, s), F = lerp(D, E, s);
+  return [F, E, C];
+}
+const pathD = (Q) => `M${Q[0].x.toFixed(2)},${Q[0].y.toFixed(2)} Q${Q[1].x.toFixed(2)},${Q[1].y.toFixed(2)} ${Q[2].x.toFixed(2)},${Q[2].y.toFixed(2)}`;
+
+/* ---------- graph parsing ---------- */
+function parseGraph(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("The top level must be a JSON object.");
+  if (!Array.isArray(obj.nodes) || obj.nodes.length === 0) throw new Error('"nodes" must be a non-empty array.');
+  if (!Array.isArray(obj.edges)) throw new Error('"edges" must be an array.');
+  const nodes = obj.nodes.map((n, i) => {
+    if (typeof n === "string" || typeof n === "number") n = { id: n };
+    if (!n || n.id === undefined || n.id === null) throw new Error(`Node #${i} has no "id".`);
+    return { id: String(n.id), x: n.x, y: n.y };
+  });
+  const byId = new Map();
+  for (const n of nodes) { if (byId.has(n.id)) throw new Error(`Duplicate node id "${n.id}".`); byId.set(n.id, n); }
+  const hasPos = (n) => typeof n.x === "number" && typeof n.y === "number";
+  const edges = obj.edges.map((e, i) => {
+    let from, to, length, curve;
+    if (Array.isArray(e)) [from, to, length] = e;
+    else if (e && typeof e === "object") ({ from, to, length, curve } = e);
+    else throw new Error(`Edge #${i} must be an object or [from, to, length].`);
+    from = String(from); to = String(to);
+    if (!byId.has(from)) throw new Error(`Edge #${i}: unknown vertex "${from}".`);
+    if (!byId.has(to)) throw new Error(`Edge #${i}: unknown vertex "${to}".`);
+    if (from === to) throw new Error(`Edge #${i}: self-loops (${from}–${to}) aren't supported.`);
+    if (length === undefined || length === null) {
+      const a = byId.get(from), b = byId.get(to);
+      if (!hasPos(a) || !hasPos(b)) throw new Error(`Edge #${i} (${from}–${to}) has no length, and its endpoints lack coordinates to compute one from.`);
+      length = Math.round(Math.hypot(a.x - b.x, a.y - b.y));
+    }
+    if (typeof length !== "number" || !isFinite(length)) throw new Error(`Edge #${i} (${from}–${to}): "length" must be a number.`);
+    if (length < 0) throw new Error(`Edge #${i} (${from}–${to}) has negative length ${length}.\nA negative fuse would deliver fire before it was lit, and Dijkstra needs nonnegative lengths for the same reason.`);
+    return { from, to, length, curve: typeof curve === "number" ? curve : undefined };
+  });
+  const directed = !!obj.directed;
+  const source = obj.source !== undefined ? String(obj.source) : nodes[0].id;
+  if (!byId.has(source)) throw new Error(`Source "${source}" is not a vertex.`);
+  const pos = (k) => (typeof obj[k] === "number" && obj[k] > 0 ? obj[k] : undefined);
+
+  // positions: use given coordinates if all present, else a circle; then normalize to a fixed box
+  if (!nodes.every(hasPos)) nodes.forEach((n, i) => {
+    const a = (2 * Math.PI * i) / nodes.length - Math.PI;
+    n.x = Math.cos(a); n.y = Math.sin(a);
+  });
+  const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
+  const minx = Math.min(...xs), miny = Math.min(...ys);
+  const w = Math.max(...xs) - minx, h = Math.max(...ys) - miny;
+  let s = Math.min(w > 0 ? 780 / w : Infinity, h > 0 ? 430 / h : Infinity);
+  if (!isFinite(s)) s = 1;
+  nodes.forEach((n) => { n.px = (n.x - minx) * s; n.py = (n.y - miny) * s; });
+  return { name: obj.name || "(untitled graph)", description: obj.description || "", directed, source,
+           step: pos("step") ?? pos("speed"), rate: pos("rate"),
+           nodes, edges, W: w * s, H: h * s, raw: obj };
+}
+
+function prettyJSON(o) {
+  const one = (x) => Array.isArray(x) ? JSON.stringify(x).replace(/,/g, ", ")
+    : (x && typeof x === "object") ? "{ " + Object.entries(x).map(([k, v]) => JSON.stringify(k) + ": " + JSON.stringify(v)).join(", ") + " }"
+    : JSON.stringify(x);
+  const keys = Object.keys(o);
+  const out = ["{"];
+  keys.forEach((k, i) => {
+    const v = o[k], c = i < keys.length - 1 ? "," : "";
+    if (Array.isArray(v) && v.length && typeof v[0] === "object") {
+      out.push(`  ${JSON.stringify(k)}: [`);
+      v.forEach((x, j) => out.push("    " + one(x) + (j < v.length - 1 ? "," : "")));
+      out.push("  ]" + c);
+    } else out.push(`  ${JSON.stringify(k)}: ${JSON.stringify(v)}${c}`);
+  });
+  out.push("}");
+  return out.join("\n");
+}
+
+/* ---------- loading a graph ---------- */
+// Distance at which the whole graph has burned out (used to pick a sensible default play rate).
+function burnOutDistance(source) {
+  const d = new Map(G.nodes.map((n) => [n.id, Infinity])), done = new Set();
+  d.set(source, 0);
+  for (;;) {
+    let u = null;
+    for (const n of G.nodes) if (!done.has(n.id) && d.get(n.id) < Infinity && (u === null || d.get(n.id) < d.get(u))) u = n.id;
+    if (u === null) break;
+    done.add(u);
+    for (const { to, length } of G.adj.get(u)) d.set(to, Math.min(d.get(to), d.get(u) + length));
+  }
+  let m = 0;
+  for (const e of G.edges) {
+    const a = d.get(e.from), b = d.get(e.to);
+    if (G.directed) { if (a < Infinity) m = Math.max(m, a + e.length); }
+    else if (a < Infinity || b < Infinity) m = Math.max(m, Math.min((a + b + e.length) / 2, a + e.length, b + e.length));
+  }
+  return m;
+}
+
+function loadGraph(g) {
+  stopAll();
+  G = g;
+  G.pos = Object.fromEntries(G.nodes.map((n) => [n.id, { x: n.px, y: n.py }]));
+  G.adj = new Map(G.nodes.map((n) => [n.id, []]));
+  G.edges.forEach((e, i) => {
+    G.adj.get(e.from).push({ to: e.to, length: e.length, ei: i });
+    if (!G.directed) G.adj.get(e.to).push({ to: e.from, length: e.length, ei: i });
+  });
+  $("#sourceSel").innerHTML = G.nodes.map((n) => `<option${n.id === G.source ? " selected" : ""}>${esc(n.id)}</option>`).join("");
+
+  // defaults scaled to this graph's lengths
+  const lens = G.edges.map((e) => e.length).filter((l) => l > 0);
+  const minLen = lens.length ? Math.min(...lens) : 1;
+  const ints = lens.every((l) => Number.isInteger(l));
+  const step = G.step ?? (ints ? Math.max(1, niceFloor(minLen / 2)) : niceFloor(minLen / 2));
+  $("#stepLen").value = step;
+  const rate0 = G.rate ?? niceNearest(Math.max(burnOutDistance(G.source), minLen) / 8);   // whole burn ≈ 8 s
+  rates = niceSeq(rate0 / 20, rate0 * 50);
+  if (!rates.some((r) => Math.abs(r - rate0) < EPS)) { rates.push(rate0); rates.sort((a, b) => a - b); }
+  $("#rate").max = rates.length - 1;
+  $("#rate").value = rates.findIndex((r) => Math.abs(r - rate0) < EPS);
+  showRate();
+
+  $("#desc").textContent = (G.directed ? "Directed: fuses burn only along the arrows. " : "Undirected: fuses burn in both directions. ") + G.description;
+  buildSVG();
+  reset();
+}
+
+function buildSVG() {
+  const svg = $("#stage");
+  for (const id of ["#gEdges", "#gEmbers", "#gLabels", "#gNodes"]) $(id).innerHTML = "";
+  const pad = 80;
+  svg.setAttribute("viewBox", `${-pad} ${-pad} ${G.W + 2 * pad} ${G.H + 2 * pad + 24}`);
+  const key = (a, b) => a + "\u0000" + b;
+  const dirSet = new Set(G.edges.map((e) => key(e.from, e.to)));
+  els = { edges: [], nodes: new Map() };
+
+  G.edges.forEach((e) => {
+    const a = G.pos[e.from], b = G.pos[e.to];
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    let c = e.curve;
+    if (c === undefined) c = G.directed && dirSet.has(key(e.to, e.from)) ? 0.18 : 0;
+    const P = [a, { x: (a.x + b.x) / 2 + nx * c * len, y: (a.y + b.y) / 2 + ny * c * len }, b];
+    const tA = Math.min(0.45, (R + 1) / len);
+    const tTip = 1 - Math.min(0.45, (R + 2) / len);
+    const tE = G.directed ? Math.max(tA + 0.01, tTip - 13 / len) : 1 - tA;   // where the trail ends
+    const g = el("g", {}, $("#gEdges"));
+    const ref = {
+      e, P, tA, tE, len,
+      trail: el("path", { class: "trail", d: pathD(subBz(P, tA, tE)) }, g),
+      burntA: el("path", { class: "burnt" }, g),
+      burntB: el("path", { class: "burnt" }, g),
+      tree: el("path", { class: "treeEdge", d: pathD(subBz(P, tA, tE)), display: "none" }, g),
+      hotA: el("path", { class: "hot" }, g),
+      hotB: el("path", { class: "hot" }, g),
+      emberA: el("circle", { class: "ember", r: 6 }, $("#gEmbers")),
+      emberB: el("circle", { class: "ember", r: 6 }, $("#gEmbers")),
+    };
+    if (G.directed) {
+      const tip = bz(P, tTip), tg = bzTan(P, tTip), tl = Math.hypot(tg.x, tg.y) || 1;
+      const ux = tg.x / tl, uy = tg.y / tl;
+      const p1 = { x: tip.x - ux * 15 + uy * 7, y: tip.y - uy * 15 - ux * 7 };
+      const p2 = { x: tip.x - ux * 15 - uy * 7, y: tip.y - uy * 15 + ux * 7 };
+      ref.arrow = el("polygon", { class: "arrow", points: `${tip.x},${tip.y} ${p1.x},${p1.y} ${p2.x},${p2.y}` }, g);
+    }
+    // length label: at the middle, nudged off curved edges
+    const m = bz(P, 0.5);
+    const off = c !== 0 ? 18 * Math.sign(c) : 0;
+    const lg = el("g", { class: "elabel", transform: `translate(${m.x + nx * off},${m.y + ny * off})` }, $("#gLabels"));
+    ref.lrect = el("rect", { rx: 8, ry: 8, height: 30, y: -15 }, lg);
+    ref.ltext = el("text", {}, lg);
+    ref.lg = lg;
+    ref.lastLabel = null;
+    els.edges.push(ref);
+  });
+
+  G.nodes.forEach((n) => {
+    const p = G.pos[n.id];
+    const g = el("g", { class: "node", transform: `translate(${p.x},${p.y})` }, $("#gNodes"));
+    const ref = {
+      g,
+      halo: el("circle", { class: "halo", r: R + 9 }, g),
+      body: el("circle", { class: "body", r: R }, g),
+      name: el("text", { class: "name" }, g),
+      sub: el("text", { class: "sublabel", y: R + 24 }, g),
+    };
+    ref.name.textContent = n.id;
+    els.nodes.set(n.id, ref);
+  });
+}
+
+function updateSourceRing() {
+  for (const [id, ref] of els.nodes) {
+    if (ref.src) { ref.src.remove(); ref.src = null; }
+    if (id === S.source) { ref.src = el("circle", { class: "src", r: R + 5 }, ref.g); ref.g.insertBefore(ref.src, ref.body); }
+  }
+}
+
+/* ---------- simulation state (this IS Dijkstra) ---------- */
+function reset() {
+  stopAll();
+  const source = $("#sourceSel").value || G.source;
+  S = {
+    source, D: 0, steps: 0, jumps: 0,
+    key: new Map(G.nodes.map((n) => [n.id, Infinity])),   // d(v): priority-queue keys / final distances
+    via: new Map(),                                        // π(v)
+    burned: new Map(),                                     // id -> {d, parent, order}
+    hist: new Map(G.nodes.map((n) => [n.id, []])),        // id -> earlier values of d(v), crossed out
+    fresh: new Set(),                                      // vertices whose d(v) changed at the last ignition
+    log: [],
+  };
+  S.key.set(source, 0);
+  S.log.push({ start: true, source });
+  version++;
+  updateSourceRing();
+  render();
+}
+
+function nextInQueue() {
+  let best = null;
+  for (const n of G.nodes) {
+    if (S.burned.has(n.id)) continue;
+    const k = S.key.get(n.id);
+    if (k < Infinity && (!best || k < best.k - EPS)) best = { id: n.id, k };
+  }
+  return best;
+}
+
+// extract-min + relax: vertex `id` catches fire and lights its fuses
+function ignite(id) {
+  const d = S.key.get(id);
+  const parent = S.via.get(id) ?? null;
+  S.burned.set(id, { d, parent, order: S.burned.size + 1 });
+  S.fresh.clear();
+  const relax = [];
+  for (const { to, length } of G.adj.get(id)) {
+    if (S.burned.has(to)) { if (to !== parent) relax.push({ to, length, kind: "burning" }); continue; }
+    const old = S.key.get(to), nk = d + length;
+    if (nk < old - EPS) {
+      S.key.set(to, nk); S.via.set(to, id);
+      if (old < Infinity) S.hist.get(to).push(old);   // the initial ∞ is simply erased
+      S.fresh.add(to);
+      relax.push({ to, length, old, nk, kind: old === Infinity ? "insert" : "decrease" });
+    } else relax.push({ to, length, old, nk, kind: "keep" });
+  }
+  S.log.push({ id, d, parent, relax });
+  version++;
+}
+
+// Move the fire front to distance newD, igniting everything it reaches on the way.
+function advanceTo(newD) {
+  let nx;
+  while ((nx = nextInQueue()) && nx.k <= newD + EPS) ignite(nx.id);
+  S.D = newD;
+}
+
+// distance at which every trail reachable so far is completely burned
+function finishD() {
+  let m = 0;
+  for (const e of G.edges) {
+    const bu = S.burned.get(e.from), bv = S.burned.get(e.to);
+    let t = -Infinity;
+    if (G.directed) { if (bu) t = bu.d + e.length; }
+    else if (bu && bv) t = Math.min((bu.d + bv.d + e.length) / 2, bu.d + e.length, bv.d + e.length);
+    else if (bu) t = bu.d + e.length;
+    else if (bv) t = bv.d + e.length;
+    m = Math.max(m, t);
+  }
+  for (const b of S.burned.values()) m = Math.max(m, b.d);
+  return m;
+}
+const allDone = () => !nextInQueue() && S.D >= finishD() - EPS;
+
+function stepLen() { const v = parseFloat($("#stepLen").value); return v > 0 ? v : 1; }
+function rate() { return rates[+$("#rate").value] ?? 1; }
+function showRate() { $("#rateOut").textContent = `${fmt(rate())} / s`; }
+
+/* ---------- animation ---------- */
+function stopAll() { anim = null; chainToken++; setPlaying(false); }
+function setPlaying(p) {
+  playing = p;
+  $("#btnPlay").innerHTML = (p ? "⏸ Pause" : "▶ Play") + "<kbd>Space</kbd>";
+  if (p) { lastFrame = performance.now(); requestAnimationFrame(frame); }
+}
+
+function tween({ toD, dur, igniteAlong, onDone }) {
+  const fromD = S.D, t0 = performance.now();
+  anim = {
+    step(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      const D = fromD + (toD - fromD) * p;            // linear: fire burns at constant speed
+      if (igniteAlong) advanceTo(D); else S.D = D;
+      if (p >= 1) { anim = null; onDone && onDone(); }
+    },
+    finish() {                                        // jump straight to the end of this tween
+      if (igniteAlong) advanceTo(toD); else S.D = toD;
+      onDone && onDone();
+    },
+  };
+  requestAnimationFrame(frame);
+}
+
+function frame(now) {
+  if (anim) anim.step(now);
+  if (playing) {
+    const dt = Math.min(0.1, (now - lastFrame) / 1000);
+    lastFrame = now;
+    advanceTo(S.D + dt * rate());
+    if (allDone()) setPlaying(false);
+  }
+  render();
+  if (anim || playing) requestAnimationFrame(frame);
+}
+
+function finishAnim() { if (anim) { const a = anim; anim = null; a.finish(); } }
+
+function doStep() {
+  chainToken++; setPlaying(false); finishAnim();
+  if (allDone()) return;
+  S.steps++;
+  tween({ toD: S.D + stepLen(), dur: 320, igniteAlong: true, onDone: () => render() });
+}
+
+function nextIgnition(chain) {
+  if (!chain) chainToken++;
+  const token = chainToken;
+  setPlaying(false); finishAnim();
+  const nx = nextInQueue();
+  if (!nx) { render(); return false; }
+  const done = () => {
+    if (!S.burned.has(nx.id)) ignite(nx.id);
+    S.jumps++; version++;
+    render();
+    if (chain && nextInQueue()) setTimeout(() => { if (token === chainToken && !anim && !playing) nextIgnition(true); }, 220);
+    else if (chain) burnOut();
+  };
+  if (nx.k - S.D < EPS) { done(); return true; }
+  tween({ toD: nx.k, dur: chain ? 450 : 750, igniteAlong: false, onDone: done });
+  return true;
+}
+
+// after the last ignition, let the remaining partially-burned trails finish
+function burnOut() {
+  const end = finishD();
+  if (S.D < end - EPS) tween({ toD: end, dur: 600, igniteAlong: true, onDone: () => render() });
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  const D = S.D, showProg = $("#optProgress").checked, showTree = $("#optTree").checked;
+  const hide = (...xs) => xs.forEach((x) => x.setAttribute("display", "none"));
+  const show = (x, Q) => { x.removeAttribute("display"); x.setAttribute("d", pathD(Q)); };
+  const place = (c, p) => { c.removeAttribute("display"); c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); };
+  for (const r of els.edges) {
+    const { e, P, tA, tE } = r, L = e.length, span = tE - tA;
+    const bu = S.burned.get(e.from), bv = S.burned.get(e.to);
+    const fr = (b) => (b ? (L > 0 ? clamp01((D - b.d) / L) : 1) : 0);
+    const f = fr(bu), g = G.directed ? 0 : fr(bv);
+    const full = f + g >= 1 - EPS;
+    const hotT = Math.min(0.18 * span, 36 / r.len);
+    if (full) {
+      show(r.burntA, subBz(P, tA, tE)); hide(r.burntB, r.hotA, r.hotB, r.emberA, r.emberB);
+    } else {
+      if (f > 0) {
+        const front = tA + f * span;
+        show(r.burntA, subBz(P, tA, front));
+        show(r.hotA, subBz(P, Math.max(tA, front - Math.min(hotT, f * span)), front));
+        place(r.emberA, bz(P, front));
+      } else hide(r.burntA, r.hotA, r.emberA);
+      if (g > 0) {
+        const front = tE - g * span;
+        show(r.burntB, subBz(P, front, tE));
+        show(r.hotB, subBz(P, front, Math.min(tE, front + Math.min(hotT, g * span))));
+        place(r.emberB, bz(P, front));
+      } else hide(r.burntB, r.hotB, r.emberB);
+    }
+    if (r.arrow) r.arrow.classList.toggle("done", full);
+    const isTree = (bv && bv.parent === e.from) || (!G.directed && bu && bu.parent === e.to);
+    if (showTree && isTree && full) r.tree.removeAttribute("display"); else r.tree.setAttribute("display", "none");
+
+    const burning = !full && (f > 0 || g > 0);
+    const label = showProg && burning ? `${fmt(Math.min(L, (f + g) * L))} / ${fmt(L)}` : fmt(L);
+    if (label !== r.lastLabel) {
+      r.ltext.textContent = label;
+      const w = Math.max(32, r.ltext.getComputedTextLength() + 16);
+      r.lrect.setAttribute("width", w); r.lrect.setAttribute("x", -w / 2);
+      r.lastLabel = label;
+    }
+    r.lg.classList.toggle("burning", burning);
+  }
+
+  for (const n of G.nodes) {
+    const ref = els.nodes.get(n.id), b = S.burned.get(n.id);
+    ref.g.classList.toggle("on", !!b);
+    const k = S.key.get(n.id), hist = S.hist.get(n.id), fresh = !b && S.fresh.has(n.id);
+    const subKey = `${k}|${hist.join(",")}|${fresh}`;
+    if (ref.lastSub !== subKey) {
+      ref.lastSub = subKey;
+      const sub = ref.sub; sub.textContent = "";
+      el("tspan", {}, sub).textContent = "d =";
+      for (const h of hist) el("tspan", { class: "wasT", dx: 7 }, sub).textContent = fmt(h);
+      el("tspan", { class: fresh ? "flashT" : "", dx: 7 }, sub).textContent = fmt(k);
+    }
+  }
+
+  $("#clockD").textContent = fmt(S.D);
+  $("#cSteps").textContent = S.steps;
+  $("#cJumps").textContent = S.jumps;
+  $("#cBurn").textContent = `${S.burned.size}/${G.nodes.length}`;
+  const nx = nextInQueue(), finished = allDone();
+  $("#btnNext").disabled = !nx;
+  $("#btnRun").disabled = finished;
+  $("#btnStep").disabled = finished;
+  $("#btnPlay").disabled = finished && !playing;
+  if (drawnVersion !== version) { drawnVersion = version; renderPanels(); }
+}
+
+function renderPanels() {
+  const nx = nextInQueue();
+  $("#tblBody").innerHTML = G.nodes.map((n) => {   // fixed row order, like a table on paper
+    const id = n.id, b = S.burned.get(id), k = S.key.get(id), fresh = !b && S.fresh.has(id);
+    const cls = [b ? "on" : "", nx && nx.id === id ? "next" : "", k === Infinity ? "inf" : ""].join(" ");
+    const dv = S.hist.get(id).map((h) => `<span class="was">${fmt(h)}</span>`).join("") + (fresh ? `<span class="flash">${fmt(k)}</span>` : fmt(k));
+    const st = b ? `🔥 #${b.order}` : nx && nx.id === id ? "next" : "";
+    return `<tr class="${cls}"><td class="v">${esc(id)}</td><td class="dv">${dv}</td><td>${esc(S.via.get(id) ?? "—")}</td><td class="st">${st}</td></tr>`;
+  }).join("");
+
+  const log = $("#log");
+  log.innerHTML = S.log.map((ev) => {
+    if (ev.start) return `<div class="ev"><div class="hd">Source <b>${esc(ev.source)}</b> has d = 0; every other vertex has d = ∞.</div></div>`;
+    const items = ev.relax.map((r) => {
+      const arrow = `${esc(ev.id)}→${esc(r.to)} (${fmt(r.length)})`;
+      if (r.kind === "burning") return `<li class="none">${arrow}: ${esc(r.to)} already on fire, nothing to do</li>`;
+      if (r.kind === "insert") return `<li>${arrow}: d(${esc(r.to)}) = ${fmt(ev.d)} + ${fmt(r.length)} = <b>${fmt(r.nk)}</b><span class="tag ins">insert</span></li>`;
+      if (r.kind === "decrease") return `<li>${arrow}: d(${esc(r.to)}) drops from ${fmt(r.old)} to <b>${fmt(r.nk)}</b><span class="tag dec">decrease-key</span></li>`;
+      return `<li class="none">${arrow}: ${fmt(r.nk)} ≥ ${fmt(r.old)}, d(${esc(r.to)}) unchanged</li>`;
+    }).join("");
+    return `<div class="ev"><div class="hd">At distance <b>${fmt(ev.d)}</b>: <b>${esc(ev.id)}</b> catches fire${ev.parent ? ` (via ${esc(ev.parent)})` : ""} <span class="muted">· extract-min</span></div><ul>${items || `<li class="none">no outgoing fuses</li>`}</ul></div>`;
+  }).join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ---------- UI wiring ---------- */
+$("#btnStep").onclick = doStep;
+$("#btnPlay").onclick = () => { chainToken++; finishAnim(); setPlaying(!playing && !allDone()); render(); };
+$("#btnNext").onclick = () => nextIgnition(false);
+$("#btnRun").onclick = () => { chainToken++; if (!nextIgnition(true)) { setPlaying(false); finishAnim(); burnOut(); } };
+$("#btnReset").onclick = reset;
+$("#sourceSel").onchange = reset;
+$("#optProgress").onchange = $("#optTree").onchange = () => render();
+$("#stepLen").onchange = () => { if (!(parseFloat($("#stepLen").value) > 0)) $("#stepLen").value = 1; };
+$("#rate").oninput = showRate;
+$("#logWrap").ontoggle = () => { $("#log").scrollTop = $("#log").scrollHeight; };
+
+$("#btnTheme").onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === "light" ? "dark" : "light";
+};
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.closest("input, textarea, select, dialog") || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === " ") { ev.preventDefault(); $("#btnPlay").click(); }
+  else if (ev.key === "ArrowRight") { ev.preventDefault(); doStep(); }
+  else if (ev.key === "n" || ev.key === "N") nextIgnition(false);
+  else if (ev.key === "r" || ev.key === "R") reset();
+});
+
+// JSON dialog
+const dlg = $("#jsonDlg");
+$("#btnJson").onclick = () => { $("#jsonText").value = prettyJSON(G.raw); $("#jsonErr").textContent = ""; dlg.showModal(); };
+$("#jsonClose").onclick = () => dlg.close();
+$("#jsonApply").onclick = () => {
+  try {
+    const raw = JSON.parse($("#jsonText").value);
+    const g = parseGraph(raw);
+    let opt = [...$("#exampleSel").options].find((o) => o.value === "custom");
+    if (!opt) { opt = new Option("", "custom"); $("#exampleSel").add(opt); }
+    opt.textContent = "Custom: " + g.name;
+    $("#exampleSel").value = "custom";
+    customRaw = raw;
+    loadGraph(g);
+    dlg.close();
+  } catch (err) { $("#jsonErr").textContent = err.message; }
+};
+$("#jsonDownload").onclick = () => {
+  let text = $("#jsonText").value, name = "graph";
+  try { name = JSON.parse(text).name || name; } catch { }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text + "\n"], { type: "application/json" }));
+  a.download = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".json";
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("#jsonOpenBtn").onclick = () => $("#jsonFile").click();
+$("#jsonFile").onchange = async () => {
+  const f = $("#jsonFile").files[0]; if (!f) return;
+  $("#jsonText").value = await f.text(); $("#jsonFile").value = "";
+};
+
+$("#exampleSel").onchange = () => {
+  const v = $("#exampleSel").value;
+  if (v === "custom") { if (customRaw) loadGraph(parseGraph(customRaw)); return; }
+  const ex = examples[+v];
+  history.replaceState(null, "", "#" + encodeURIComponent(ex.file));
+  loadGraph(parseGraph(ex.raw));
+};
+
+/* ---------- boot ---------- */
+async function boot() {
+  try {
+    const list = await (await fetch("examples/index.json", { cache: "no-cache" })).json();
+    const results = await Promise.all(list.map(async (file) => {
+      try {
+        const raw = await (await fetch("examples/" + file, { cache: "no-cache" })).json();
+        parseGraph(raw);
+        return { file, raw };
+      } catch (err) { console.warn(`Skipping examples/${file}:`, err); warn(`Couldn't load examples/${file}: ${err.message}`); return null; }
+    }));
+    examples = results.filter(Boolean);
+    if (!examples.length) throw new Error("no valid examples");
+  } catch (err) {
+    examples = [{ file: "builtin", raw: FALLBACK }];
+    warn("Couldn't load the examples/ folder, so only the built-in triangle is available. Serve this folder over http (e.g. python3 -m http.server) rather than opening the file directly.");
+  }
+  $("#exampleSel").innerHTML = examples.map((ex, i) => `<option value="${i}">${esc(ex.raw.name || ex.file)}</option>`).join("");
+  const want = decodeURIComponent(location.hash.slice(1));
+  const idx = Math.max(0, examples.findIndex((ex) => ex.file === want));
+  $("#exampleSel").value = idx;
+  loadGraph(parseGraph(examples[idx].raw));
+}
+function warn(msg) { const b = $("#banner"); b.style.display = "block"; b.textContent = (b.textContent ? b.textContent + " " : "") + msg; }
+boot();
+</script>
+</body>
+</html>
